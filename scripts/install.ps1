@@ -41,18 +41,6 @@ function Write-Styled {
 }
 
 # Get version number function
-function Get-LatestVersion {
-    try {
-        $latestRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/Haneti/cursor-free-vip/releases/latest"
-        return @{
-            Version = $latestRelease.tag_name.TrimStart('v')
-            Assets = $latestRelease.assets
-        }
-    } catch {
-        Write-Styled $_.Exception.Message -Color $Theme.Error -Prefix "Error"
-        throw "Cannot get latest version"
-    }
-}
 
 # Show Logo
 Write-Host $Logo -ForegroundColor $Theme.Primary
