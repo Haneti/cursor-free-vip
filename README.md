@@ -80,7 +80,7 @@ curl -fsSL https://raw.githubusercontent.com/yeongpin/cursor-free-vip/main/scrip
 **Windows**
 
 ```powershell
-irm https://raw.githubusercontent.com/yeongpin/cursor-free-vip/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Haneti/cursor-free-vip/main/scripts/install.ps1 | iex
 ```
 
 </details>
