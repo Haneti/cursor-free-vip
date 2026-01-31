@@ -40,12 +40,14 @@ function Write-Styled {
     }
 }
 
-# Get version number function
-
 # Show Logo
 Write-Host $Logo -ForegroundColor $Theme.Primary
-$releaseInfo = Get-LatestVersion
-$version = $releaseInfo.Version
+
+# ====== CONFIG ======
+$version = "1.0.0"
+$downloadUrl = "https://example.com/CursorFreeVIP_1.0.0_windows.exe"
+# ====================
+
 Write-Host "Version $version" -ForegroundColor $Theme.Info
 Write-Host "Created by YeongPin`n" -ForegroundColor $Theme.Info
 
@@ -57,45 +59,28 @@ function Install-CursorFreeVIP {
     Write-Styled "Start downloading Cursor Free VIP" -Color $Theme.Primary -Prefix "Download"
     
     try {
-        # Get latest version
-        Write-Styled "Checking latest version..." -Color $Theme.Primary -Prefix "Update"
-        $releaseInfo = Get-LatestVersion
-        $version = $releaseInfo.Version
-        Write-Styled "Found latest version: $version" -Color $Theme.Success -Prefix "Version"
-        
-        # Find corresponding resources
-        $asset = $releaseInfo.Assets | Where-Object { $_.name -eq "CursorFreeVIP_${version}_windows.exe" }
-        if (!$asset) {
-            Write-Styled "File not found: CursorFreeVIP_${version}_windows.exe" -Color $Theme.Error -Prefix "Error"
-            Write-Styled "Available files:" -Color $Theme.Warning -Prefix "Info"
-            $releaseInfo.Assets | ForEach-Object {
-                Write-Styled "- $($_.name)" -Color $Theme.Info
-            }
-            throw "Cannot find target file"
-        }
-        
-        # Check if Downloads folder already exists for the corresponding version
         $DownloadsPath = [Environment]::GetFolderPath("UserProfile") + "\Downloads"
         $downloadPath = Join-Path $DownloadsPath "CursorFreeVIP_${version}_windows.exe"
         
+        # Check if file already exists
         if (Test-Path $downloadPath) {
             Write-Styled "Found existing installation file" -Color $Theme.Success -Prefix "Found"
             Write-Styled "Location: $downloadPath" -Color $Theme.Info -Prefix "Location"
             
-            # Check if running with administrator privileges
-            $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            # Check admin rights
+            $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
+            ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
             
             if (-not $isAdmin) {
                 Write-Styled "Requesting administrator privileges..." -Color $Theme.Warning -Prefix "Admin"
                 
-                # Create new process with administrator privileges
                 $startInfo = New-Object System.Diagnostics.ProcessStartInfo
                 $startInfo.FileName = $downloadPath
                 $startInfo.UseShellExecute = $true
                 $startInfo.Verb = "runas"
                 
                 try {
-                    [System.Diagnostics.Process]::Start($startInfo)
+                    [System.Diagnostics.Process]::Start($startInfo) | Out-Null
                     Write-Styled "Program started with admin privileges" -Color $Theme.Success -Prefix "Launch"
                     return
                 }
@@ -106,58 +91,54 @@ function Install-CursorFreeVIP {
                 }
             }
             
-            # If already running with administrator privileges, start directly
             Start-Process $downloadPath
             return
         }
         
-        Write-Styled "No existing installation file found, starting download..." -Color $Theme.Primary -Prefix "Download"
+        Write-Styled "No existing file found, starting download..." -Color $Theme.Primary -Prefix "Download"
         
-        # Create WebClient and add progress event
+        # Create WebClient
         $webClient = New-Object System.Net.WebClient
         $webClient.Headers.Add("User-Agent", "PowerShell Script")
 
-        # Define progress variables
+        # Progress variables
         $Global:downloadedBytes = 0
         $Global:totalBytes = 0
         $Global:lastProgress = 0
         $Global:lastBytes = 0
         $Global:lastTime = Get-Date
 
-        # Download progress event
-        $eventId = [guid]::NewGuid()
+        # Progress event
         Register-ObjectEvent -InputObject $webClient -EventName DownloadProgressChanged -Action {
             $Global:downloadedBytes = $EventArgs.BytesReceived
             $Global:totalBytes = $EventArgs.TotalBytesToReceive
-            $progress = [math]::Round(($Global:downloadedBytes / $Global:totalBytes) * 100, 1)
-            
-            # Only update display when progress changes by more than 1%
-            if ($progress -gt $Global:lastProgress + 1) {
-                $Global:lastProgress = $progress
-                $downloadedMB = [math]::Round($Global:downloadedBytes / 1MB, 2)
-                $totalMB = [math]::Round($Global:totalBytes / 1MB, 2)
+            if ($Global:totalBytes -gt 0) {
+                $progress = [math]::Round(($Global:downloadedBytes / $Global:totalBytes) * 100, 1)
                 
-                # Calculate download speed
-                $currentTime = Get-Date
-                $timeSpan = ($currentTime - $Global:lastTime).TotalSeconds
-                if ($timeSpan -gt 0) {
-                    $bytesChange = $Global:downloadedBytes - $Global:lastBytes
-                    $speed = $bytesChange / $timeSpan
+                if ($progress -gt $Global:lastProgress + 1) {
+                    $Global:lastProgress = $progress
+                    $downloadedMB = [math]::Round($Global:downloadedBytes / 1MB, 2)
+                    $totalMB = [math]::Round($Global:totalBytes / 1MB, 2)
                     
-                    # Choose appropriate unit based on speed
-                    $speedDisplay = if ($speed -gt 1MB) {
-                        "$([math]::Round($speed / 1MB, 2)) MB/s"
-                    } elseif ($speed -gt 1KB) {
-                        "$([math]::Round($speed / 1KB, 2)) KB/s"
-                    } else {
-                        "$([math]::Round($speed, 2)) B/s"
+                    $currentTime = Get-Date
+                    $timeSpan = ($currentTime - $Global:lastTime).TotalSeconds
+                    if ($timeSpan -gt 0) {
+                        $bytesChange = $Global:downloadedBytes - $Global:lastBytes
+                        $speed = $bytesChange / $timeSpan
+                        
+                        $speedDisplay = if ($speed -gt 1MB) {
+                            "$([math]::Round($speed / 1MB, 2)) MB/s"
+                        } elseif ($speed -gt 1KB) {
+                            "$([math]::Round($speed / 1KB, 2)) KB/s"
+                        } else {
+                            "$([math]::Round($speed, 2)) B/s"
+                        }
+                        
+                        Write-Host "`rDownloading: $downloadedMB MB / $totalMB MB ($progress%) - $speedDisplay" -NoNewline -ForegroundColor Cyan
+                        
+                        $Global:lastBytes = $Global:downloadedBytes
+                        $Global:lastTime = $currentTime
                     }
-                    
-                    Write-Host "`rDownloading: $downloadedMB MB / $totalMB MB ($progress%) - $speedDisplay" -NoNewline -ForegroundColor Cyan
-                    
-                    # Update last data
-                    $Global:lastBytes = $Global:downloadedBytes
-                    $Global:lastTime = $currentTime
                 }
             }
         } | Out-Null
@@ -166,11 +147,10 @@ function Install-CursorFreeVIP {
         Register-ObjectEvent -InputObject $webClient -EventName DownloadFileCompleted -Action {
             Write-Host "`r" -NoNewline
             Write-Styled "Download completed!" -Color $Theme.Success -Prefix "Complete"
-            Unregister-Event -SourceIdentifier $eventId
         } | Out-Null
 
         # Start download
-        $webClient.DownloadFileAsync([Uri]$asset.browser_download_url, $downloadPath)
+        $webClient.DownloadFileAsync([Uri]$downloadUrl, $downloadPath)
 
         # Wait for download to complete
         while ($webClient.IsBusy) {
@@ -180,7 +160,6 @@ function Install-CursorFreeVIP {
         Write-Styled "File location: $downloadPath" -Color $Theme.Info -Prefix "Location"
         Write-Styled "Starting program..." -Color $Theme.Primary -Prefix "Launch"
         
-        # Run program
         Start-Process $downloadPath
     }
     catch {
